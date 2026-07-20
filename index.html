@@ -2387,9 +2387,17 @@ function showAdminLoginModal(callback) {
   if (nameSpan) nameSpan.innerText = surahName;
   if (sheikhSpan) sheikhSpan.innerText = sheikhs[currentSheikh].name;
   if (audio) {
-    audio.src = url;
-    audio.load();
-    audio.play().catch(e => console.log("Audio play error:", e));
+    // ✅ التحقق إذا كان التطبيق يعمل داخل الأندرويد لتشغيل الخدمة الخلفية (لإظهار مربع التحكم في الإشعارات)
+    if (window.Android && typeof Android.startQuranService === 'function') {
+      Android.startQuranService(surahName, sheikhs[currentSheikh].name, url, surahNumber, sheikhs[currentSheikh].url);
+      // نقوم بإيقاف مشغل الـ HTML لتجنب ازدواج الصوت
+      audio.pause();
+      audio.src = "";
+    } else {
+      audio.src = url;
+      audio.load();
+      audio.play().catch(e => console.log("Audio play error:", e));
+    }
   }
 
   updateMediaSession(surahName, sheikhs[currentSheikh].name);
@@ -2549,24 +2557,42 @@ function showAdminLoginModal(callback) {
             <i id="recitationToggleIcon" class="fas fa-chevron-down"></i>
           </div>
           <div id="recitationGrid" class="recitation-grid">${recitationHtml}</div>
-          <div id="audioPlayerContainer" class="audio-player-container">
-            <div style="font-weight:bold;">🎙️ القارئ: <span id="currentSheikhName">اختر القارئ</span></div>
-            <div>📖 سورة <span id="currentSurahName"></span></div>
-<audio id="audioPlayer" controls onended="playNextSurah()"></audio>          </div>
+          <div id="audioPlayerContainer" class="audio-player-container" style="display:none; text-align:center;">
+            <div style="font-weight:bold; margin-bottom:5px;">🎙️ القارئ: <span id="currentSheikhName">اختر القارئ</span></div>
+            <div style="margin-bottom:10px;">📖 سورة <span id="currentSurahName"></span></div>
+
+            <!-- ✅ مشغل مخصص بأزرار تحكم كاملة -->
+            <div class="custom-player-ui" style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+              <div class="progress-area" style="width: 100%; display: flex; align-items: center; gap: 10px;">
+                <span id="currentTime" style="font-size: 0.8rem; min-width: 35px;">0:00</span>
+                <input type="range" id="playerProgress" value="0" min="0" max="100" style="flex: 1; accent-color: var(--primary-color);">
+                <span id="totalTime" style="font-size: 0.8rem; min-width: 35px;">0:00</span>
+              </div>
+
+             <div class="controls-area" style="display: flex; align-items: center; gap: 20px; font-size: 1.5rem;">
+                <i class="fas fa-step-forward" onclick="playNextSurah()" style="cursor: pointer; color: var(--primary-color);"></i>
+                <div id="mainPlayPauseBtn" onclick="toggleNativePlayback()" style="width: 50px; height: 50px; border-radius: 50%; background: var(--primary-color); color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);">
+                  <i class="fas fa-play" id="playPauseIcon"></i>
+                </div>
+                <i class="fas fa-step-backward" onclick="playPrevSurah()" style="cursor: pointer; color: var(--primary-color);"></i>
+              </div>
+
+            <!-- هيفضل مخفي بس بنستخدمه عشان الـ MediaSession metadata لو لسه شغالة ويب -->
+            <audio id="audioPlayer" style="display:none;"></audio>
+          </div>
         </div>
         <a href="#home" class="btn-unified" style="margin-top:20px;"><i class="fas fa-home"></i> الرئيسية</a>
       </div>
     `;
-    showMushafPage(currentPage);
+   showMushafPage(currentPage);
+    if (window.Android && typeof Android.requestPlaybackState === 'function') {
+      Android.requestPlaybackState();
+    }
   }
 function playNextSurah() {
-    // نستخدم المتغير الذي خزنّاه في الخطوة السابقة
     if (typeof window.currentPlayingIndex !== 'undefined') {
         const nextIndex = window.currentPlayingIndex + 1;
-
-        // التحقق من أن السورة التالية موجودة (القرآن 114 سورة)
         if (nextIndex <= 114) {
-            // تشغيل السورة التالية
             playRecitation(nextIndex, surahNames[nextIndex - 1]);
         }
     }
@@ -2577,6 +2603,77 @@ function playPrevSurah() {
         playRecitation(prevIndex, surahNames[prevIndex - 1]);
     }
 }
+
+// ✅ دوال المزامنة مع نظام الأندرويد
+window.toggleNativePlayback = function() {
+  if (window.Android && typeof Android.toggleNativePlayPause === 'function') {
+    Android.toggleNativePlayPause();
+  }
+};
+
+window.syncPlayerUI = function(isPlaying) {
+  const icon = document.getElementById('playPauseIcon');
+  if (icon) {
+    icon.className = isPlaying ? 'fas fa-pause' : 'fas fa-play';
+  }
+};
+
+window.syncPlayerProgress = function(positionMs, durationMs) {
+  const progressBar = document.getElementById('playerProgress');
+  const currentTimeTxt = document.getElementById('currentTime');
+  const totalTimeTxt = document.getElementById('totalTime');
+
+  if (progressBar && durationMs > 0) {
+    progressBar.max = durationMs;
+    if (!window.isSeekingProgress) {
+      progressBar.value = positionMs;
+    }
+  }
+
+  if (currentTimeTxt) currentTimeTxt.innerText = formatTime(positionMs / 1000);
+  if (totalTimeTxt) totalTimeTxt.innerText = formatTime(durationMs / 1000);
+};
+
+function formatTime(seconds) {
+  if (isNaN(seconds)) return "0:00";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// إضافة مستمع لحدث الـ Input في الـ progress bar لتقديم/تأخير السورة
+document.addEventListener('input', (e) => {
+  if (e.target && e.target.id === 'playerProgress') {
+    window.isSeekingProgress = true;
+    const currentTimeTxt = document.getElementById('currentTime');
+    if (currentTimeTxt) currentTimeTxt.innerText = formatTime(e.target.value / 1000);
+  }
+});
+
+document.addEventListener('change', (e) => {
+  if (e.target && e.target.id === 'playerProgress') {
+    const newPos = parseInt(e.target.value, 10);
+    if (window.Android && typeof Android.seekNative === 'function') {
+      Android.seekNative(newPos);
+    }
+    setTimeout(() => { window.isSeekingProgress = false; }, 800);
+  }
+});
+window.syncWithIndex = function(index) {
+  if (surahNames && surahNames[index - 1]) {
+    const surahName = surahNames[index - 1];
+    window.currentPlayingIndex = index;
+    const nameSpan = document.getElementById('currentSurahName');
+    if (nameSpan) nameSpan.innerText = surahName;
+
+    // تحديث شريط التقدم إذا كان مفتوحاً (تصفيره للسورة الجديدة)
+    const progressBar = document.getElementById('playerProgress');
+    if (progressBar) progressBar.value = 0;
+  }
+};
+
 function updateMediaSession(surahName, sheikhName) {
     if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
