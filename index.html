@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <html lang="ar">
 <head>
+  <script>
+    // التعرف على نوع الجهاز من خلال الـ User Agent
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+    // لو الجهاز مش أيفون أو أيباد، يتم التوجيه فوراً لصفحة الرفض
+    if (!isIOS) {
+        window.location.replace("not-supported.html");
+    }
+</script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <meta charset="UTF-8">
