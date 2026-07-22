@@ -1,15 +1,6 @@
 <!DOCTYPE html>
 <html lang="ar">
 <head>
-  <script>
-    // التعرف على نوع الجهاز من خلال الـ User Agent
-    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
-    // لو الجهاز مش أيفون أو أيباد، يتم التوجيه فوراً لصفحة الرفض
-    if (!isIOS) {
-        window.location.replace("not-supported.html");
-    }
-</script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <meta charset="UTF-8">
@@ -1038,6 +1029,15 @@ body.dark .admin-login-input {
   <script src="azkar.js"></script>
   <script src="stories.js"></script>
   <script src="country.js"></script>
+  <script>
+    // التعرف على نوع الجهاز من خلال الـ User Agent
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+    // لو الجهاز مش أيفون أو أيباد، يتم التوجيه فوراً لصفحة الرفض
+    if (!isIOS) {
+        window.location.replace("not-supported.html");
+    }
+</script>
 </head>
 <body>
 <svg id="islamicBgDecor" viewBox="0 0 400 900" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
